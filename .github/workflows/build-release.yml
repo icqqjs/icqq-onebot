@@ -105,6 +105,13 @@ jobs:
           token: ${{ secrets.SOURCE_REPO_TOKEN }}
           ref: ${{ github.event.client_payload.sha || inputs.sha }}
 
+      # 发版仓自身（含 macOS .app 打包脚本 macos/make-app.sh），放到 _ci/ 子目录，
+      # 与上面 checkout 到根目录的源码并存。
+      - name: 拉取发版仓资源（macOS 打包脚本）
+        uses: actions/checkout@v4
+        with:
+          path: _ci
+
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -118,19 +125,31 @@ jobs:
       - name: 构建
         run: cargo build --release --target ${{ matrix.target }} -p icqq-app
 
-      - name: 打包 tar.gz
+      - name: 打包（Linux/Windows 裸二进制；macOS 打成可双击 .app）
         shell: bash
         run: |
           name="${{ matrix.name }}"
-          bin="$name${{ matrix.ext }}"
+          target="${{ matrix.target }}"
+          ext="${{ matrix.ext }}"
+          tag="${{ github.event.client_payload.tag || inputs.tag }}"
+          ver="${tag#v}"
           mkdir -p dist
-          # 二进制按平台名重命名（如 icqq-windows.exe / icqq-linux / icqq-macos），
-          # 多平台下载到一起也能区分。
-          cp "target/${{ matrix.target }}/release/icqq-app${{ matrix.ext }}" "dist/$bin"
           # 把示例配置一起打进发布包（随上游源码 checkout 而来，在仓库根）。
           cp config.example.yaml dist/
-          # 平铺打包：解压后直接是「二进制 + config.example.yaml」两个文件，无外层目录。
-          tar czf "$name.tar.gz" -C dist "$bin" config.example.yaml
+          if [[ "$target" == *apple-darwin* ]]; then
+            # macOS：生成可双击启动的 icqq-onebot.app（内含真正的二进制 +
+            # 打开 Terminal 运行它的启动器）。二进制仍在 Contents/MacOS/icqq-app-bin，
+            # 高级用户可继续在终端直接跑。
+            bash _ci/macos/make-app.sh "target/$target/release/icqq-app" "dist/icqq-onebot.app" "$ver"
+            # 平铺打包：解压后是「icqq-onebot.app + config.example.yaml」。
+            tar czf "$name.tar.gz" -C dist "icqq-onebot.app" config.example.yaml
+          else
+            # 二进制按平台名重命名（如 icqq-windows.exe / icqq-linux），多平台下载到
+            # 一起也能区分。平铺打包：解压后是「二进制 + config.example.yaml」。
+            bin="$name$ext"
+            cp "target/$target/release/icqq-app$ext" "dist/$bin"
+            tar czf "$name.tar.gz" -C dist "$bin" config.example.yaml
+          fi
 
       - name: 上传产物
         uses: actions/upload-artifact@v4
@@ -177,5 +196,13 @@ jobs:
             | Linux arm64 | `icqq-linux-arm64.tar.gz` |
             | Windows x64 | `icqq-windows.tar.gz` |
             | Windows arm64 | `icqq-windows-arm64.tar.gz` |
-            | macOS arm64 | `icqq-macos.tar.gz` |
-            | macOS x64 | `icqq-macos-x64.tar.gz` |
+            | macOS arm64 | `icqq-macos.tar.gz` (含可双击 `icqq-onebot.app`) |
+            | macOS x64 | `icqq-macos-x64.tar.gz` (含可双击 `icqq-onebot.app`) |
+
+            ### macOS 使用
+            解压后把 `config.example.yaml` 改名为 `config.yaml` 并填好，与
+            `icqq-onebot.app` 放在同一目录，**双击 `icqq-onebot.app`** 即可（会自动
+            打开「终端」在该目录运行，读取 `./config.yaml`、生成 `./data/`）。
+            首次因未签名会被 Gatekeeper 拦截:**右键 → 打开**（确认一次）即可；或执行
+            `xattr -dr com.apple.quarantine icqq-onebot.app`。也可在终端直接运行包内
+            的 `icqq-onebot.app/Contents/MacOS/icqq-app-bin`。
