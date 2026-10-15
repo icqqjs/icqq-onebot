@@ -175,6 +175,7 @@ jobs:
           for dir in artifacts/*/; do
             cp "$dir"* release/
           done
+          (cd release && sha256sum *.tar.gz > SHA256SUMS)
           ls -la release/
 
       - name: 创建 Release
@@ -182,7 +183,8 @@ jobs:
         with:
           tag_name: ${{ github.event.client_payload.tag || inputs.tag }}
           name: ${{ github.event.client_payload.tag || inputs.tag }}
-          make_latest: true
+          prerelease: ${{ contains(github.event.client_payload.tag || inputs.tag, '-') }}
+          make_latest: ${{ contains(github.event.client_payload.tag || inputs.tag, '-') && 'false' || 'true' }}
           files: release/*
           body: |
             ## icqq-onebot ${{ github.event.client_payload.tag || inputs.tag }}

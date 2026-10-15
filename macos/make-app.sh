@@ -12,6 +12,10 @@ set -euo pipefail
 BIN_SRC="$1"
 APP="$2"
 VER="$3"
+# Bundle version fields accept numeric release components; keep the complete
+# prerelease label in CFBundleGetInfoString and in the CLI's own version output.
+BUNDLE_VER="${VER%%-*}"
+BUNDLE_VER="${BUNDLE_VER%%+*}"
 
 mkdir -p "$APP/Contents/MacOS"
 
@@ -44,8 +48,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>icqq-onebot</string>
   <key>CFBundleDisplayName</key><string>icqq-onebot</string>
   <key>CFBundleIdentifier</key><string>com.icqqjs.icqq-onebot</string>
-  <key>CFBundleVersion</key><string>${VER}</string>
-  <key>CFBundleShortVersionString</key><string>${VER}</string>
+  <key>CFBundleVersion</key><string>${BUNDLE_VER}</string>
+  <key>CFBundleShortVersionString</key><string>${BUNDLE_VER}</string>
+  <key>CFBundleGetInfoString</key><string>${VER}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleExecutable</key><string>icqq-onebot</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
