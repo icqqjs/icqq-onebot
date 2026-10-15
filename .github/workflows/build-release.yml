@@ -32,6 +32,10 @@ jobs:
   preflight:
     name: 预检（fmt / clippy / test）
     runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - name: 拉取源码
         uses: actions/checkout@v4
